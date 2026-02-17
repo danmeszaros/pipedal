@@ -9,6 +9,9 @@ To get this running, we'll use **CircuitPython** because it handles the USB MIDI
 1. **Install CircuitPython:** Hold the **BOOTSEL** button on your Pico, plug it into your USB port, and drag the [CircuitPython UF2 file]() onto the `RPI-RP2` drive that appears.
 2. **Add the Library:** Download the [Adafruit CircuitPython MIDI bundle](). Copy the folder named `adafruit_midi` into the `lib` folder on your Pico (which will now show up as a drive named `CIRCUITPY`).
 
+https://circuitpython.org/board/raspberry_pi_pico/
+https://circuitpython.org/libraries
+
 ---
 
 ### 2. The MIDI Code
