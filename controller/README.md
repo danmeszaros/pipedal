@@ -1,3 +1,12 @@
+### PINS
+```
+Encoder 1 : button 6, data 7, clock 8
+Encoder 2 : button 9, data 10, clock 11
+Encoder 3 : button 20, data 21, clock 22 
+```
+
+### NOTES
+
 Got it! The **Raspberry Pi Pico** is the perfect choice for this. It’s significantly safer to handle than the Pi 5, and it acts as a "Class Compliant" USB MIDI device, meaning your computer will recognize it instantly without needing any special drivers.
 
 To get this running, we'll use **CircuitPython** because it handles the USB MIDI handshake automatically.
