@@ -58,4 +58,68 @@ while True:
 
 If you don't hear anything, download a free tool like **MIDI-OX** (Windows) or **MIDI Monitor** (Mac). It will show you a log of every message the Pico sends so you can verify the hardware is working even if your music software isn't configured yet.
 
-**Would you like to add a physical button to the Pico so it only sends the note when you press it?**
+### buttons / encder test
+If you have a mix of pull-up and pull-down resistors, the code needs to be a bit more flexible. Some sensors (like most buttons or open-collector sensors) require a **Pull-Up** to stay at 3.3V until they are triggered to Ground.
+
+---
+
+### Handling Mixed Configurations
+
+The easiest way to handle this is to define which pins are "special" (Pull-Up) and default the rest to Pull-Down.
+
+```python
+import machine
+import utime
+
+# Define which pins should use PULL_UP
+# Example: Pins 14 and 15 are connected to buttons that switch to Ground
+PULL_UP_PINS = {14, 15}
+
+# All digital pins we want to monitor
+PINS_TO_SCAN = list(range(0, 23)) + list(range(26, 29))
+
+pins = {}
+for n in PINS_TO_SCAN:
+    if n in PULL_UP_PINS:
+        # Pull-up keeps the pin at 1 (High) by default
+        pins[n] = machine.Pin(n, machine.Pin.IN, machine.Pin.PULL_UP)
+    else:
+        # Pull-down keeps the pin at 0 (Low) by default
+        pins[n] = machine.Pin(n, machine.Pin.IN, machine.Pin.PULL_DOWN)
+
+# Record initial states
+last_states = {n: pins[n].value() for n in PINS_TO_SCAN}
+
+print("--- Mixed GPIO Monitor Started ---")
+
+while True:
+    for pin_num in PINS_TO_SCAN:
+        current_state = pins[pin_num].value()
+        
+        if current_state != last_states[pin_num]:
+            # Logic check: If it's a pull-up pin, 0 usually means "Active"
+            # If it's a pull-down pin, 1 usually means "Active"
+            tag = "[PULL-UP]" if pin_num in PULL_UP_PINS else "[PULL-DOWN]"
+            
+            print(f"[*] {tag} Pin {pin_num:02d} -> {current_state}")
+            
+            last_states[pin_num] = current_state
+            
+    utime.sleep_ms(10)
+
+```
+
+---
+
+### Why this matters
+
+1. **Logic Inversion:** On a `PULL_UP` pin, the pin sits at **1** (High). When you press a button connected to Ground, the value drops to **0** (Low).
+2. **Floating Pins:** If you set a pin to `PULL_UP` but nothing is connected to it, it will stay at a solid `1`. If you leave it as "floating" (no resistor), it will bounce between 0 and 1 just from the static electricity in the air, which would spam your console with "state change" messages.
+3. **Safety:** Never connect a pin set to `PULL_UP` directly to a high voltage source above 3.3V, or you'll risk frying the GPIO bank.
+
+### How to tell which one you need
+
+* **Pull-Up:** Use this if your switch connects the pin to **GND** (Ground).
+* **Pull-Down:** Use this if your switch connects the pin to **3.3V**.
+
+Would you like me to add a **logging feature** so these state changes are saved to a file on the Pico's flash memory in case it's running unplugged?
