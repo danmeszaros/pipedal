@@ -63,63 +63,63 @@ If you have a mix of pull-up and pull-down resistors, the code needs to be a bit
 
 ---
 
-### Handling Mixed Configurations
+This is a classic "logic sniffer" setup. For the Raspberry Pi Pico, we’ll use **MicroPython** to iterate through the available GPIO pins, keep track of their last known state, and shout it out whenever something flips.
 
-The easiest way to handle this is to define which pins are "special" (Pull-Up) and default the rest to Pull-Down.
+### The Setup
+
+On the Pico, not every pin is a standard user-facing GPIO (some are internal or used for power). We'll focus on **GPIO 0 through 22** and **26 through 28**, which are the standard digital pins.
+
+---
+
+### The Code
 
 ```python
 import machine
 import utime
 
-# Define which pins should use PULL_UP
-# Example: Pins 14 and 15 are connected to buttons that switch to Ground
-PULL_UP_PINS = {14, 15}
-
-# All digital pins we want to monitor
+# List of usable GPIO pins on the Pico
+# We skip internal pins like 23-25 and 29
 PINS_TO_SCAN = list(range(0, 23)) + list(range(26, 29))
 
-pins = {}
-for n in PINS_TO_SCAN:
-    if n in PULL_UP_PINS:
-        # Pull-up keeps the pin at 1 (High) by default
-        pins[n] = machine.Pin(n, machine.Pin.IN, machine.Pin.PULL_UP)
-    else:
-        # Pull-down keeps the pin at 0 (Low) by default
-        pins[n] = machine.Pin(n, machine.Pin.IN, machine.Pin.PULL_DOWN)
+# Initialize pins as inputs with a pull-down resistor
+# Note: If you have external pull-ups, change to machine.Pin.PULL_UP
+pins = {n: machine.Pin(n, machine.Pin.IN, machine.Pin.PULL_UP) for n in PINS_TO_SCAN}
 
-# Record initial states
+# Dictionary to store the last known state of each pin
 last_states = {n: pins[n].value() for n in PINS_TO_SCAN}
 
-print("--- Mixed GPIO Monitor Started ---")
+print("--- Starting GPIO Monitor ---")
+print(f"Scanning pins: {PINS_TO_SCAN}")
 
 while True:
     for pin_num in PINS_TO_SCAN:
         current_state = pins[pin_num].value()
         
+        # Check if the state has changed since the last loop
         if current_state != last_states[pin_num]:
-            # Logic check: If it's a pull-up pin, 0 usually means "Active"
-            # If it's a pull-down pin, 1 usually means "Active"
-            tag = "[PULL-UP]" if pin_num in PULL_UP_PINS else "[PULL-DOWN]"
+            state_text = "HIGH (1)" if current_state == 1 else "LOW (0)"
+            print(f"[*] Pin {pin_num:02d} changed to {state_text}")
             
-            print(f"[*] {tag} Pin {pin_num:02d} -> {current_state}")
-            
+            # Update the stored state
             last_states[pin_num] = current_state
             
+    # Tiny sleep to prevent CPU hogging and provide basic debouncing
     utime.sleep_ms(10)
 
 ```
 
 ---
 
-### Why this matters
+### How it works
 
-1. **Logic Inversion:** On a `PULL_UP` pin, the pin sits at **1** (High). When you press a button connected to Ground, the value drops to **0** (Low).
-2. **Floating Pins:** If you set a pin to `PULL_UP` but nothing is connected to it, it will stay at a solid `1`. If you leave it as "floating" (no resistor), it will bounce between 0 and 1 just from the static electricity in the air, which would spam your console with "state change" messages.
-3. **Safety:** Never connect a pin set to `PULL_UP` directly to a high voltage source above 3.3V, or you'll risk frying the GPIO bank.
+* **Pin Selection:** We define `PINS_TO_SCAN` to avoid the internal pins used for power management and the onboard LED.
+* **Initialization:** We use a dictionary comprehension to set up every pin as an `IN` (input) with a `PULL_DOWN`. This ensures the pins read as `0` unless you connect them to a 3.3V source.
+* **The Loop:** It constantly compares the `current_state` with the `last_states`. If it finds a mismatch, it prints the update and saves the new state.
+* **Debouncing:** `utime.sleep_ms(10)` is a simple way to ignore "chatter" if you're manually touching wires or clicking a physical button.
 
-### How to tell which one you need
+### Pro-Tips
 
-* **Pull-Up:** Use this if your switch connects the pin to **GND** (Ground).
-* **Pull-Down:** Use this if your switch connects the pin to **3.3V**.
+* **Pull Resistors:** If your pins are "floating" (connected to nothing), they might report random changes due to electromagnetic interference. The `PULL_DOWN` keeps them stable at 0.
+* **Performance:** If you need to detect extremely fast pulses (in the microsecond range), you would want to use **Interrupts (IRQ)** instead of a `while` loop, but for general state changes, this polling method is much easier to debug.
 
-Would you like me to add a **logging feature** so these state changes are saved to a file on the Pico's flash memory in case it's running unplugged?
+Would you like me to rewrite this using **Interrupts (IRQs)** so the Pico catches changes instantly without a loop?
