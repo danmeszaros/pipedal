@@ -132,3 +132,67 @@ while True:
 * **Performance:** If you need to detect extremely fast pulses (in the microsecond range), you would want to use **Interrupts (IRQ)** instead of a `while` loop, but for general state changes, this polling method is much easier to debug.
 
 Would you like me to rewrite this using **Interrupts (IRQs)** so the Pico catches changes instantly without a loop?
+
+### rotario replacement
+
+```
+import machine
+import utime
+
+class KY040:
+    def __init__(self, clk_pin, dt_pin, sw_pin, name="Encoder"):
+        self.name = name
+        # Initialize Pins
+        self.clk = machine.Pin(clk_pin, machine.Pin.IN, machine.Pin.PULL_UP)
+        self.dt = machine.Pin(dt_pin, machine.Pin.IN, machine.Pin.PULL_UP)
+        self.sw = machine.Pin(sw_pin, machine.Pin.IN, machine.Pin.PULL_UP)
+        
+        # State variables
+        self.value = 0
+        self.last_interrupt_time = 0
+        self.last_sw_time = 0
+        
+        # Attach Interrupts
+        self.clk.irq(trigger=machine.Pin.IRQ_FALLING, handler=self._rotary_handler)
+        self.sw.irq(trigger=machine.Pin.IRQ_FALLING, handler=self._button_handler)
+
+    def _rotary_handler(self, pin):
+        current_time = utime.ticks_ms()
+        # 20ms debounce for rotation
+        if utime.ticks_diff(current_time, self.last_interrupt_time) > 20:
+            if self.dt.value() != self.clk.value():
+                self.value += 1
+            else:
+                self.value -= 1
+            self.last_interrupt_time = current_time
+            print(f"[{self.name}] Value: {self.value}")
+
+    def _button_handler(self, pin):
+        current_time = utime.ticks_ms()
+        # 200ms debounce for button (mechanical buttons are noisier)
+        if utime.ticks_diff(current_time, self.last_sw_time) > 200:
+            print(f"[{self.name}] Button Pressed!")
+            self.value = 0 # Optional: Reset value on press
+            self.last_sw_time = current_time
+
+    def get_value(self):
+        return self.value
+
+# --- Implementation for 3 Encoders ---
+
+# Encoder 1: Pins 16, 15, 14
+enc_volume = KY040(clk_pin=16, dt_pin=15, sw_pin=14, name="Volume")
+
+# Encoder 2: Pins 13, 12, 11
+enc_brightness = KY040(clk_pin=13, dt_pin=12, sw_pin=11, name="Brightness")
+
+# Encoder 3: Pins 10, 9, 8
+enc_menu = KY040(clk_pin=10, dt_pin=9, sw_pin=8, name="Menu")
+
+print("All 3 encoders initialized and monitoring...")
+
+while True:
+    # The main loop is free to do other things!
+    # The encoders work entirely in the background via interrupts.
+    utime.sleep(1)
+```
