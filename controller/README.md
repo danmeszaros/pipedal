@@ -135,64 +135,67 @@ Would you like me to rewrite this using **Interrupts (IRQs)** so the Pico catche
 
 ### rotario replacement
 
-```
+```python
 import machine
 import utime
 
 class KY040:
     def __init__(self, clk_pin, dt_pin, sw_pin, name="Encoder"):
         self.name = name
-        # Initialize Pins
         self.clk = machine.Pin(clk_pin, machine.Pin.IN, machine.Pin.PULL_UP)
         self.dt = machine.Pin(dt_pin, machine.Pin.IN, machine.Pin.PULL_UP)
         self.sw = machine.Pin(sw_pin, machine.Pin.IN, machine.Pin.PULL_UP)
         
-        # State variables
         self.value = 0
+        self._button_latched = False  # Internal state
         self.last_interrupt_time = 0
         self.last_sw_time = 0
         
-        # Attach Interrupts
+        # Interrupts
         self.clk.irq(trigger=machine.Pin.IRQ_FALLING, handler=self._rotary_handler)
         self.sw.irq(trigger=machine.Pin.IRQ_FALLING, handler=self._button_handler)
 
     def _rotary_handler(self, pin):
         current_time = utime.ticks_ms()
-        # 20ms debounce for rotation
         if utime.ticks_diff(current_time, self.last_interrupt_time) > 20:
             if self.dt.value() != self.clk.value():
                 self.value += 1
             else:
                 self.value -= 1
             self.last_interrupt_time = current_time
-            print(f"[{self.name}] Value: {self.value}")
 
     def _button_handler(self, pin):
         current_time = utime.ticks_ms()
-        # 200ms debounce for button (mechanical buttons are noisier)
         if utime.ticks_diff(current_time, self.last_sw_time) > 200:
-            print(f"[{self.name}] Button Pressed!")
-            self.value = 0 # Optional: Reset value on press
+            self._button_latched = True  # Set the latch
             self.last_sw_time = current_time
+
+    def was_pressed(self):
+        """Returns True if pressed since last check, then resets."""
+        if self._button_latched:
+            self._button_latched = False # Reset the inner state
+            return True
+        return False
 
     def get_value(self):
         return self.value
 
-# --- Implementation for 3 Encoders ---
+# --- Usage Example ---
 
-# Encoder 1: Pins 16, 15, 14
-enc_volume = KY040(clk_pin=16, dt_pin=15, sw_pin=14, name="Volume")
+enc1 = KY040(16, 15, 14, "Vol")
+enc2 = KY040(13, 12, 11, "Light")
 
-# Encoder 2: Pins 13, 12, 11
-enc_brightness = KY040(clk_pin=13, dt_pin=12, sw_pin=11, name="Brightness")
-
-# Encoder 3: Pins 10, 9, 8
-enc_menu = KY040(clk_pin=10, dt_pin=9, sw_pin=8, name="Menu")
-
-print("All 3 encoders initialized and monitoring...")
+print("Monitoring Encoders...")
 
 while True:
-    # The main loop is free to do other things!
-    # The encoders work entirely in the background via interrupts.
-    utime.sleep(1)
+    # Check Encoder 1
+    if enc1.was_pressed():
+        print(f"Button 1 Pressed! Current Value: {enc1.get_value()}")
+        
+    # Check Encoder 2
+    if enc2.was_pressed():
+        print(f"Button 2 Pressed! Current Value: {enc2.get_value()}")
+        
+    # Standard loop activities
+    utime.sleep_ms(50)
 ```
