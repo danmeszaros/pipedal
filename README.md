@@ -15,6 +15,15 @@ sudo raspi-config
 apt-get update
 apt-get dist-upgrade
 
+# power off bus on power down
+sudo rpi-eeprom-config --edit
+# add POWER_OFF_ON_HALT=1
+
+# add service/pipedal_lcd.service to /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable pipedal_lcd.service
+sudo systemctl start pipedal_lcd.service
+
 reboot
 ```
 

@@ -1,0 +1,15 @@
+[Unit]
+Description=My Python Startup Script
+After=network.target
+
+[Service]
+ExecStart=/home/dna/venv/bin/python3 /home/dna/lcd.py
+WorkingDirectory=/home/dna
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=dna
+
+[Install]
+WantedBy=multi-user.target
+
