@@ -76,4 +76,10 @@ if __name__ == "__main__":
     except FileNotFoundError:
         print("Error: Image file not found. Make sure it's in the same folder!")
 ```
+## lcd v2
 
+```
+sudo usermod -aG video,render,input $USER
+sudo apt install libsdl2-2.0-0 libsdl2-dev
+sudo apt install python3-pygame
+```
