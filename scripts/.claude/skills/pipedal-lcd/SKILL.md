@@ -9,14 +9,16 @@ description: Work on the PiPedal stage LCD (lcd.py + pipedal_stage.py) running o
 A pygame display for a Raspberry Pi 5 with a DSI LCD (800x480). It runs on KMSDRM with no desktop.
 - **Top:** the current preset name, a fixed `BNMachine.ttf` font at size 110. The user writes names that fit, so don't auto-shrink them. An orange dot top-left = preset modified (unsaved). An orange `OFFLINE` top-right = websocket down.
 - **Bottom:** 3 effect slots, filled left to right in signal-chain order, max 3. Unused slots are black.
+- **Sides:** vertical peak meters in the area above the slots (the slots keep the full width), input on the left and output on the right (mono; output = max(L,R)). Scale is -60..0 dBFS in green/yellow/red zones (boundaries at -12 and -3), with a peak-hold line and a clip light on top. Config `NICE` (applied in main() before threads start), `VU_METERS` (False = no meters and no server subscription), `METER_*`, `PEAK_HOLD_S`, `CLIP_HOLD_S`, `FPS`.
 
 ## Files (project root)
 - `lcd.py` — the display. All config sits at the top:
   - `EFFECT_TYPES`: prefix → RGB
   - `LABEL_MODE`, `NAME_FONT_SIZE`, `NUM_SLOTS`, `DIM_BG`, `DIM_FG`
   - `display_key()`: turns the state into what gets drawn. It redraws only when the result changes.
-  - `draw(screen, key)`: renders to any pygame surface.
-- `pipedal_stage.py` — websocket client module (`PiPedalClient`, `StageState`, `Effect`). It connects to `ws://<host>:<port>/pipedal`, the same websocket the PiPedal web UI uses. Only read-only requests are used: `hello`, `currentPedalboard`, `getPresets`. It also listens for notifications. `lcd.py` imports it, so leave it untouched unless asked; it also works standalone with `--console` or `--json`.
+  - `draw(screen, key, vin, vout)`: renders to any pygame surface; the meter views are optional and default to idle. No `flip()` anywhere. The main loop renders `draw_static()` into a cached background only when the key changes and pushes the whole screen with `pygame.display.update()`. Meter-only frames (`FPS`, 30) restore just the `meter_rects()` areas from the background, redraw the meters and call `display.update(meter_rects)`. Nothing is pushed when nothing changed.
+  - `Meter`: `feed()` is called from the websocket thread with linear peaks, `tick()` once per frame, `view()` returns `(level_dB, peak_dB, clip)`.
+- `pipedal_stage.py` — websocket client module (`PiPedalClient`, `StageState`, `Effect`). It connects to `ws://<host>:<port>/pipedal`, the same websocket the PiPedal web UI uses. Only read-only requests are used: `hello`, `currentPedalboard`, `getPresets`, and `addVuSubscription` when the optional `on_vu` callback is given. VU protocol (verified live): `addVuSubscription(instanceId)` with `VU_INPUT_ID=-2` / `VU_OUTPUT_ID=-3`; the server pushes `onVuUpdate` `{instanceId, inputMaxValueL/R, outputMaxValueL/R, isStereoInput/Output, ...}` (linear peaks), about 18–30/s each. Every update must be acked, or the server stops sending (the generic `replyTo` ack handles this). It also listens for notifications. `lcd.py` imports it, so leave it untouched unless asked; it also works standalone with `--console` or `--json`.
 - `lcd_old.py` — the original version, which polled the `.bank` file. Kept as a backup.
 - `BNMachine.ttf` — lives only on the Pi, next to `lcd.py`. The code loads it relative to the script's directory and falls back to pygame's default font.
 

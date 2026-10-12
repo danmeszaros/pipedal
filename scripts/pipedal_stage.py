@@ -35,6 +35,11 @@ SKIP_URIS = {
     "uri://two-play/pipedal/pedalboard#End",
 }
 
+# Synthetic instance ids of the pedalboard's input / output volume stages.
+# Subscribing to their VU gives the overall input and output levels.
+VU_INPUT_ID = -2
+VU_OUTPUT_ID = -3
+
 
 # --------------------------------------------------------------------------
 # State model
@@ -115,9 +120,10 @@ class PiPedalState:
 # --------------------------------------------------------------------------
 
 class PiPedalClient:
-    def __init__(self, url, on_change):
+    def __init__(self, url, on_change, on_vu=None):
         self.url = url
         self.on_change = on_change   # called with StageState (from the client thread)
+        self.on_vu = on_vu           # optional; called with each onVuUpdate body (client thread)
         self.state = PiPedalState()
         self._ws = None
         self._next_id = 1
@@ -177,6 +183,12 @@ class PiPedalClient:
             changed = self.state.set_item_enabled(body["instanceId"], bool(body["enabled"]))
         elif m == "onSelectedSnapshotChanged":
             self.state.set_selected_snapshot(body)
+        elif m == "onVuUpdate":
+            # ~30/s per subscription. The ack below is required: the server
+            # stops sending while an update is unacknowledged.
+            if self.on_vu:
+                self.on_vu(body)
+            changed = False
         else:
             changed = False
 
@@ -201,6 +213,9 @@ class PiPedalClient:
                     self._ws = ws
                     reader = asyncio.create_task(self._reader())
                     await self._request("hello")   # subscribes to notifications
+                    if self.on_vu:
+                        for iid in (VU_INPUT_ID, VU_OUTPUT_ID):
+                            await self._request("addVuSubscription", iid)
                     self.state.pedalboard = await self._request("currentPedalboard")
                     self.state.presets = await self._request("getPresets")
                     self.state.connected = True
